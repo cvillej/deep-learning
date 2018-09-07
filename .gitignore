@@ -1,3 +1,5 @@
 **/*.jpg
 **/*.mp4
 **/.idea/**
+**.DS_Store
+**/models

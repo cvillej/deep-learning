@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from imutils import paths
+import ntpath
 import collections
 import argparse
 import sys
@@ -8,19 +9,21 @@ import time
 
 do_print_results=False
 
-ap = argparse.ArgumentParser()
-ap.add_argument("-q", "--query_dir", required=True, help="query dir")
-ap.add_argument("-t", "--train_dir", required=True, help="train dir")
-ap.add_argument("-o", "--output_file", required=True, help="output file")
+# ap = argparse.ArgumentParser()
+# ap.add_argument("-q", "--query_dir", required=True, help="query dir")
+# ap.add_argument("-t", "--train_dir", required=True, help="train dir")
+# ap.add_argument("-o", "--output_file", required=True, help="output file")
+# args = vars(ap.parse_args())
 
-args = vars(ap.parse_args())
+query_img = '/Users/juser/dev/deep-learning/src/video/frame.png'
+train_dir = '/Users/juser/dev/deep-learning/src/video/frames/sub'
 
-query_dir = args["query_dir"]
-train_dir = args["train_dir"]
-output_file = args["output_file"]
+# query_dir = args["query_dir"]
+# train_dir = args["train_dir"]
+output_file = '/Users/juser/dev/deep-learning/src/video/out.txt'
 
-print('query_dir: {}'.format(query_dir))
-print('train_dir: {}'.format(train_dir))
+# print('query_dir: {}'.format(query_dir))
+# print('train_dir: {}'.format(train_dir))
 print('output_file: {}'.format(output_file))
 
 
@@ -32,15 +35,9 @@ def write_results(output, query_img, score):
 def percentage(part, whole):
     return 100 * float(part) / float(whole)
 
-def print_score(query_img, img_cnt, all_matches, good_matches, homograph_matches, homography_inlier_matches,
-                homography_outlier_matches):
-    print '\nprint_score all_matches: {} good_matches: {}'.format(len(all_matches[0]), len(good_matches[0]))
-    print('homograph_matches: {} inliers: {}'.format(len(homograph_matches), homography_inlier_matches))
-    if len(homograph_matches) != 0:
-        print 'percent: {}'.format(percentage(homography_inlier_matches, len(all_matches[0])))
 
 def feature_matcher(query_img, train_folder):
-    min_match_count = 10
+    min_match_count = 0
 
     img1 = cv2.imread(query_img, 0)
     surf = cv2.xfeatures2d.SURF_create(800)
@@ -64,38 +61,43 @@ def feature_matcher(query_img, train_folder):
 
             good = []
             for m, n in matches:
-
-                if m.distance < 0.7 * n.distance:
+                if m.distance < 0.8 * n.distance:
                     good.append(m)
-
             if len(good) > min_match_count:
                 src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
                 dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
                 M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-                matchesMask = mask.ravel().tolist()
 
-                if not M is None and not M.all() == None:
-                    total_homography = total_homography + len(matchesMask)
+                if not M is None and not M.all() == None and mask is not None:
+                    matchesMask = mask.ravel().tolist()
+                    img_homography = len(matchesMask)
+                    print('{} - {}'.format(ntpath.basename(train_img), img_homography))
+                    if img_homography < 15:
+                        print('{} - {}'.format(ntpath.basename(train_img), img_homography))
+                    total_homography = total_homography + img_homography
                     res = collections.Counter(matchesMask)
 
                     total_outliers = total_outliers + res[0]
                     total_inliers = total_inliers + res[1]
                     mask_ratio = percentage(res[1], len(matchesMask))
+                else:
+                    print('bad-{}'.format(ntpath.basename(train_img)))
+            else:
+                print('bad-{}'.format(ntpath.basename(train_img)))
+
 
         except Exception as e:
-
+            print(e)
             pass
 
-    if do_print_results:
-        print_score(query_img, img_cnt, total_matches, good, total_homography, total_inliers, total_outliers)
+    avg_homography = total_homography/img_cnt;
+
     return img_cnt, total_matches, total_homography, total_inliers, total_outliers
 
+
 results = []
-for query_img in paths.list_images(query_dir):
-    start_time = time.time()
-    # top_train_img, mask = feature_matcher(query_img, train_dir)
-    img_cnt, total_matches, total_homography, total_inliers, total_outliers = feature_matcher(query_img, train_dir)
-    score = percentage(total_homography, total_matches)
-    score = total_homography
-    write_results(output_file, query_img, score)
+start_time = time.time()
+# top_train_img, mask = feature_matcher(query_img, train_dir)
+img_cnt, total_matches, total_homography, total_inliers, total_outliers = feature_matcher(query_img, train_dir)
+print('img_cnt: {}'.format(img_cnt))
